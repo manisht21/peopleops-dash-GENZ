@@ -101,6 +101,10 @@ const Attendance = () => {
   }, [user]);
 
   const handleCheckIn = async () => {
+    if (!isAdmin) {
+      toast.error("Only administrators can mark attendance");
+      return;
+    }
     setMarking(true);
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -115,15 +119,6 @@ const Attendance = () => {
       ]);
 
       if (error) throw error;
-
-      // Log activity
-      await supabase.from("activity_logs").insert([
-        {
-          user_id: user?.id,
-          action: "attendance",
-          description: "Checked in for today",
-        },
-      ]);
 
       toast.success("Checked in successfully");
       fetchAttendance();
@@ -140,6 +135,10 @@ const Attendance = () => {
   };
 
   const handleCheckOut = async () => {
+    if (!isAdmin) {
+      toast.error("Only administrators can mark attendance");
+      return;
+    }
     setMarking(true);
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -152,15 +151,6 @@ const Attendance = () => {
         .eq("date", today);
 
       if (error) throw error;
-
-      // Log activity
-      await supabase.from("activity_logs").insert([
-        {
-          user_id: user?.id,
-          action: "attendance",
-          description: "Checked out for today",
-        },
-      ]);
 
       toast.success("Checked out successfully");
       fetchAttendance();
@@ -191,34 +181,27 @@ const Attendance = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
-                {todayAttendance?.check_in ? (
-                  <>
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground">Check In</p>
-                      <p className="text-lg font-semibold">
-                        {new Date(todayAttendance.check_in).toLocaleTimeString()}
-                      </p>
-                    </div>
-                    {todayAttendance?.check_out ? (
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">Check Out</p>
-                        <p className="text-lg font-semibold">
-                          {new Date(todayAttendance.check_out).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    ) : (
-                      <Button onClick={handleCheckOut} disabled={marking}>
-                        {marking ? "Processing..." : "Check Out"}
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <Button onClick={handleCheckIn} disabled={marking}>
-                    {marking ? "Processing..." : "Check In"}
-                  </Button>
-                )}
+              <div className="text-center text-muted-foreground p-4">
+                Only administrators can mark attendance. Your attendance will be marked by an admin.
               </div>
+              {todayAttendance?.check_in && (
+                <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Check In:</span>
+                    <span className="text-sm">
+                      {new Date(todayAttendance.check_in).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  {todayAttendance.check_out && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Check Out:</span>
+                      <span className="text-sm">
+                        {new Date(todayAttendance.check_out).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
