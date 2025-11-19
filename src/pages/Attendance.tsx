@@ -40,6 +40,7 @@ const Attendance = () => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [marking, setMarking] = useState(false);
+  const [employees, setEmployees] = useState<Array<{id: string; name: string}>>([]);
 
   const fetchAttendance = async () => {
     try {
@@ -52,6 +53,15 @@ const Attendance = () => {
         .single();
 
       setIsAdmin(!!roleData);
+
+      // Fetch all employees if admin
+      if (roleData) {
+        const { data: empData } = await supabase
+          .from("profiles")
+          .select("id, name")
+          .order("name");
+        setEmployees(empData || []);
+      }
 
       // Fetch today's attendance for current user
       const today = new Date().toISOString().split("T")[0];
@@ -162,15 +172,119 @@ const Attendance = () => {
     }
   };
 
+  const handleMarkAttendance = async (employeeId: string, employeeName: string, action: 'in' | 'out') => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const now = new Date().toISOString();
+
+      if (action === 'in') {
+        const { error } = await supabase.from("attendance").insert([
+          {
+            user_id: employeeId,
+            date: today,
+            check_in: now,
+          },
+        ]);
+
+        if (error) {
+          if (error.code === "23505") {
+            toast.error(`${employeeName} has already checked in today`);
+          } else {
+            throw error;
+          }
+          return;
+        }
+
+        toast.success(`Checked in ${employeeName}`);
+      } else {
+        const { error } = await supabase
+          .from("attendance")
+          .update({ check_out: now })
+          .eq("user_id", employeeId)
+          .eq("date", today);
+
+        if (error) throw error;
+
+        toast.success(`Checked out ${employeeName}`);
+      }
+
+      fetchAttendance();
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      toast.error("Failed to mark attendance");
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Attendance Tracking</h1>
           <p className="text-muted-foreground">
-            Mark your attendance and view history
+            {isAdmin ? "Mark and manage employee attendance" : "View your attendance records"}
           </p>
         </div>
+
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Mark Employee Attendance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {employees.map((emp) => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const todayRecord = attendance.find(
+                      a => a.date === today && 
+                      a.profiles && 'name' in a.profiles && 
+                      a.profiles.name === emp.name
+                    );
+
+                    return (
+                      <div key={emp.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <span className="font-medium">{emp.name}</span>
+                        <div className="flex gap-2">
+                          {!todayRecord?.check_in ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handleMarkAttendance(emp.id, emp.name, 'in')}
+                            >
+                              Check In
+                            </Button>
+                          ) : !todayRecord?.check_out ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">
+                                In at {new Date(todayRecord.check_in).toLocaleTimeString()}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleMarkAttendance(emp.id, emp.name, 'out')}
+                              >
+                                Check Out
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              Completed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {!isAdmin && (
           <Card>
