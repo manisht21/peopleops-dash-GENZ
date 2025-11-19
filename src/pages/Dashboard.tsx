@@ -34,34 +34,64 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch total employees
-        const { count: employeeCount } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true });
+        // Check if user is admin
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user?.id)
+          .eq("role", "admin")
+          .maybeSingle();
 
-        // Fetch pending leaves
-        const { count: pendingCount } = await supabase
+        const isAdmin = !!roleData;
+
+        // Fetch total employees (admin only)
+        let employeeCount = 0;
+        if (isAdmin) {
+          const { count } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true });
+          employeeCount = count || 0;
+        }
+
+        // Fetch pending leaves (admin sees all, employee sees own)
+        let pendingQuery = supabase
           .from("leaves")
           .select("*", { count: "exact", head: true })
           .eq("status", "pending");
 
-        // Fetch today's attendance
-        const { count: attendanceCount } = await supabase
-          .from("attendance")
-          .select("*", { count: "exact", head: true })
-          .eq("date", new Date().toISOString().split("T")[0]);
+        if (!isAdmin) {
+          pendingQuery = pendingQuery.eq("user_id", user?.id);
+        }
 
-        // Fetch recent activities
-        const { data: activityData } = await supabase
+        const { count: pendingCount } = await pendingQuery;
+
+        // Fetch today's attendance (admin only)
+        let attendanceCount = 0;
+        if (isAdmin) {
+          const { count } = await supabase
+            .from("attendance")
+            .select("*", { count: "exact", head: true })
+            .eq("date", new Date().toISOString().split("T")[0]);
+          attendanceCount = count || 0;
+        }
+
+        // Fetch recent activities (users see only their own)
+        let activitiesQuery = supabase
           .from("activity_logs")
           .select("id, description, created_at, profiles(name)")
           .order("created_at", { ascending: false })
           .limit(10);
 
+        if (!isAdmin) {
+          activitiesQuery = activitiesQuery.eq("user_id", user?.id);
+        }
+
+        const { data: activityData } = await activitiesQuery;
+
         setStats({
-          totalEmployees: employeeCount || 0,
+          totalEmployees: employeeCount,
           pendingLeaves: pendingCount || 0,
-          todayAttendance: attendanceCount || 0,
+          todayAttendance: attendanceCount,
         });
 
         setActivities((activityData as any) || []);

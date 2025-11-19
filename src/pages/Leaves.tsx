@@ -82,7 +82,7 @@ const Leaves = () => {
           status,
           review_notes,
           created_at,
-          profiles(name)
+          profiles!leaves_user_id_fkey(name)
         `)
         .order("created_at", { ascending: false });
 
@@ -122,23 +122,14 @@ const Leaves = () => {
       reason: formData.get("reason") as string,
     };
 
-    try {
-      const { error } = await supabase.from("leaves").insert([leaveData]);
+      try {
+        const { error } = await supabase.from("leaves").insert([leaveData]);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Log activity
-      await supabase.from("activity_logs").insert([
-        {
-          user_id: user?.id,
-          action: "leave_request",
-          description: `Leave request submitted for ${leaveData.start_date} to ${leaveData.end_date}`,
-        },
-      ]);
-
-      toast.success("Leave request submitted successfully");
-      setDialogOpen(false);
-      fetchLeaves();
+        toast.success("Leave request submitted successfully");
+        setDialogOpen(false);
+        fetchLeaves();
     } catch (error) {
       console.error("Error submitting leave:", error);
       toast.error("Failed to submit leave request");
